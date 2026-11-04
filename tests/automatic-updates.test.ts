@@ -13,7 +13,7 @@ const mainFile = fileURLToPath(new URL("../electron/main.cjs", import.meta.url))
 const mainSource = readFileSync(mainFile, "utf8");
 const mainRequire = createRequire(mainFile);
 
-function fixture({ packaged = true, updaterMissing = false } = {}) {
+function fixture({ packaged = true, updaterMissing = false, updatesEnabled = true } = {}) {
 	let settings: string | Error = JSON.stringify({ version: 1, general: { autoUpdate: true } });
 	const settingsReads: string[] = [];
 	const order: string[] = [];
@@ -87,6 +87,7 @@ function fixture({ packaged = true, updaterMissing = false } = {}) {
 	const context = createContext({
 		require: (id: string) => {
 			if (id === "electron") return electron;
+			if (id === "../package.json") return { mandarinHarness: { updatesEnabled } };
 			if (id === "electron-updater") {
 				if (updaterMissing) throw new Error("missing updater");
 				return { autoUpdater: updater };
@@ -121,6 +122,14 @@ function fixture({ packaged = true, updaterMissing = false } = {}) {
 }
 
 describe("automatic-update preference gate", () => {
+	it("personal builds disable automatic and manual update checks", async () => {
+		const f = fixture({ updatesEnabled: false });
+		f.run("setupAutoUpdater()");
+		await f.check(); await f.check(true);
+		assert.equal(f.updater.checks, 0);
+		assert.equal(f.intervals.length, 0);
+		assert.equal(f.state().status, "disabled");
+	});
 	it("explicit OFF skips automatic checks, but manual checks still run without reading the preference", async () => {
 		const f = fixture();
 		f.setSettings({ general: { autoUpdate: false } });

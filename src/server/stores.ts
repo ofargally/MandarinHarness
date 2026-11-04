@@ -1,3 +1,6 @@
+import path from "node:path";
+import { PATHS } from "../../config.ts";
+import { createSpeechCache } from "../store/speech-cache.ts";
 /**
  * THE COMPOSITION ROOT for storage — the single place concrete store
  * adapters are wired. Everything else (core, services, agents) codes against
@@ -15,6 +18,7 @@ import { resolveSettings, type EffectiveSettings } from "../core/settings-resolu
 import { syncCustomProvider } from "./custom-provider.ts";
 /** The wired adapters. Satisfies core/graph.ts's GraphDeps structurally. */
 export const stores = {
+	speechCache: createSpeechCache({ directory: path.join(PATHS.data, "cache", "speech") }),
 	chatStore,
 	graphStore,
 	sourceOrganizationStore,

@@ -1,3 +1,9 @@
+# MandarinHarness
+
+Personal Mandarin-learning fork of [LearnHarness](https://github.com/amosblomqvist/learnharness), maintained by ofargally. Includes ElevenLabs highlight-and-read with persistent audio caching. Original attribution and license are retained.
+
+See [personal Mac builds](docs/mandarinharness.md) for packaging and installation. The upstream documentation below describes LearnHarness; its downloads are not MandarinHarness releases.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/lh_banner_dark.png">

@@ -579,8 +579,8 @@ export function KeysSection({
 				<ClaudeCodeInstallationStatus />
 			</SettingsGroup>
 
-			{(["Dictation", "Search"] as const).map((label) => <SettingsGroup key={label} label={label} testid={label === "Dictation" ? "group-dictation" : "group-search"}>
-				{toolRows.filter((status) => label === "Dictation" ? status.id === "DEEPGRAM_API_KEY" : status.id !== "DEEPGRAM_API_KEY").map((status) => (
+			{(["Read aloud", "Dictation", "Search"] as const).map((label) => <SettingsGroup key={label} label={label} testid={label === "Read aloud" ? "group-speech" : label === "Dictation" ? "group-dictation" : "group-search"}>
+				{toolRows.filter((status) => label === "Read aloud" ? status.id === "ELEVENLABS_API_KEY" : label === "Dictation" ? status.id === "DEEPGRAM_API_KEY" : !["DEEPGRAM_API_KEY", "ELEVENLABS_API_KEY"].includes(status.id)).map((status) => (
 					<KeyTableRow
 						key={status.id}
 						label={status.info?.label ?? status.id}
@@ -598,6 +598,7 @@ export function KeysSection({
 						testid={`key-${status.id.toLowerCase()}`}
 					/>
 				))}
+				{label === "Read aloud" && <p className="px-1 text-xs text-muted-foreground">Select text and choose Read. Text is sent to ElevenLabs only when matching audio is not cached.</p>}
 				{label === "Dictation" && <>
 					<DictationLanguageSetting />
 					<p data-testid="dictation-setup-hint" className="px-1 text-[11px] leading-relaxed text-muted-foreground/70">

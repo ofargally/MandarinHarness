@@ -2,7 +2,7 @@
  * The curated auth-key catalog + shape rules (auth-keys wave, 2026-09-19;
  * search wave 2026-09-20: the Google CSE pair retired, Tavily + Brave in)
  * — PURE module, so this file owns no fs. Owner decisions being pinned:
- *  - the catalog is exactly the three known keys, ids = env-var names;
+ *  - the catalog is exactly the four known keys, ids = env-var names;
  *  - validation is SHAPE-ONLY (no live pings) and bad pastes are 400s;
  *  - masking is last-4 + length — plaintext never leaves the store.
  */
@@ -12,10 +12,10 @@ import { describe, it } from "node:test";
 import { AUTH_KEYS, genericProviderKeyGuard, isKnownAuthKey, maskKey, validateKeyShape } from "../src/core/auth-keys.ts";
 
 describe("the catalog", () => {
-	it("is exactly the three CURATED app-service keys (provider keys live in the provider table)", () => {
+	it("is exactly the four CURATED app-service keys (provider keys live in the provider table)", () => {
 		assert.deepEqual(
 			AUTH_KEYS.map((k) => k.id),
-			["DEEPGRAM_API_KEY", "TAVILY_API_KEY", "BRAVE_API_KEY"],
+			["ELEVENLABS_API_KEY", "DEEPGRAM_API_KEY", "TAVILY_API_KEY", "BRAVE_API_KEY"],
 		);
 		for (const k of AUTH_KEYS) {
 			assert.ok(k.label.length > 0, `${k.id} has a label`);
@@ -42,6 +42,11 @@ describe("the catalog", () => {
 });
 
 describe("validateKeyShape (the 400 gate — curated keys)", () => {
+	it("ElevenLabs: reject empty, truncated and whitespace pastes", () => {
+		assert.ok(validateKeyShape("ELEVENLABS_API_KEY", "sk_" + "x".repeat(40)).ok);
+		assert.ok(!validateKeyShape("ELEVENLABS_API_KEY", "short").ok);
+		assert.ok(!validateKeyShape("ELEVENLABS_API_KEY", "x ".repeat(30)).ok);
+	});
 	it("Tavily: tvly- prefix required, length floor past it", () => {
 		assert.ok(validateKeyShape("TAVILY_API_KEY", "tvly-abc123def456ghi78").ok);
 		assert.ok(!validateKeyShape("TAVILY_API_KEY", "sk-or-v1-abcdefghij").ok, "wrong family");

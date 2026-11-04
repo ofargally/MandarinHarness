@@ -1,5 +1,6 @@
 "use client";
 
+import { stopSpeech } from "./speech-player";
 import { useSyncExternalStore } from "react";
 
 // The keyboard chain needs a synchronous answer; settings also subscribe
@@ -10,6 +11,7 @@ const listeners = new Set<() => void>();
 export function isDictationActive(): boolean { return active; }
 
 export function setDictationActive(next: boolean): void {
+	if (next) stopSpeech();
 	if (active === next) return;
 	active = next;
 	for (const listener of listeners) listener();

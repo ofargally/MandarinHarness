@@ -35,6 +35,7 @@ import {
 	kbdEventForAction,
 	KEYBOARD_ACTIONS,
 } from "@/src/core";
+import { stopSpeech } from "@/components/speech-player";
 import { isDictationActive } from "@/components/dictation";
 import { useSettingsDialog } from "@/components/settings/settings-dialog.tsx";
 
@@ -100,6 +101,7 @@ export function KeyboardShortcuts() {
 					window.dispatchEvent(new CustomEvent("lh:kbd-cancel-dictation"));
 					return;
 				}
+				if (stopSpeech()) { e.preventDefault(); return; }
 				window.dispatchEvent(new CustomEvent("lh:kbd-abort-turn"));
 				return;
 			}

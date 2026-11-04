@@ -145,3 +145,20 @@ export const PROMPTS_OVERRIDE_DIR = path.join(DATA_ROOT, "prompts");
 export const AUTH_FILE = process.env.LH_AUTH_FILE
 	? path.resolve(process.env.LH_AUTH_FILE)
 	: path.join(ROOT, "auth.json");
+
+/** Read-aloud has one reviewed profile, independent of teaching model slots.
+ * The default voice was selected by the user for Mandarin read-aloud. */
+export const SPEECH_PROFILE: import("./src/core/speech.ts").SpeechProfile = {
+	profileVersion: "1",
+	modelId: "eleven_flash_v2_5",
+	voiceId: "DowyQ68vDpgFYdWVGjc3",
+	languageCode: "zh",
+	outputFormat: "mp3_44100_128",
+	voiceSettings: {
+		stability: 0.5,
+		similarity_boost: 0.75,
+		style: 0,
+		use_speaker_boost: true,
+		speed: 1,
+	},
+};

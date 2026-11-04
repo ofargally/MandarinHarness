@@ -597,7 +597,7 @@ function QuestionDockForm({
 									role={qd.mode === "multi-select" ? "checkbox" : "radio"}
 									aria-checked={isSel}
 									data-kbdrow={i}
-									onClick={() => toggle(i)}
+									onClick={() => { const selection = window.getSelection?.(); if (selection && !selection.isCollapsed) return; toggle(i); }}
 									className={cn(
 										"flex items-start gap-3 rounded-lg border px-3 py-2 text-left text-sm outline-none transition-colors",
 										isSel ? "border-primary bg-accent" : "hover:bg-accent/50",
@@ -878,6 +878,7 @@ function QuestionDockForm({
 						/>
 					) : (
 						<PathInput
+							data-speech-content=""
 							ref={thinkingRef}
 							value={thinking}
 							onValueChange={(value) => {
