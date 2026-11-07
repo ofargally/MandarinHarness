@@ -7,6 +7,7 @@ import { ThinkingBlock } from "@/components/thinking-block";
 import { PathText } from "@/components/file-path-chip";
 import { cn } from "@/lib/utils";
 import { ToolContentResponse } from "@/components/ai-elements/message";
+import { ListeningAudio } from "@/components/listening-audio";
 import type { QuestionAnswerData } from "@/src/core";
 import { answerForPresentation, parseAskInput, parseQuizInput } from "@/src/core";
 
@@ -23,6 +24,12 @@ import { answerForPresentation, parseAskInput, parseQuizInput } from "@/src/core
 export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionAnswerData; input?: unknown }) {
 	const answer = answerForPresentation(savedAnswer, input);
 	const [whyOpen, setWhyOpen] = useState(false); // the tucked explanation (predictions, owner 2026-10-03)
+	if (answer.audioFailure) return (
+		<div data-testid="listening-failed-card" className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+			<div className="font-medium"><ToolContentResponse>{answer.questionText}</ToolContentResponse></div>
+			<p className="mt-2">Audio unavailable — continued another way. Listening was not assessed.</p>
+		</div>
+	);
 	if (answer.dismissed) {
 		return (
 			<div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
@@ -97,6 +104,11 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 					<ToolContentResponse>{parsedDetails}</ToolContentResponse>
 				</div>
 			)}
+			{answer.listening && <div data-testid="listening-transcript" className="mb-3">
+				<ListeningAudio text={answer.listening.text} />
+				<div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Transcript</div>
+				<div className="mt-1"><ToolContentResponse>{answer.listening.text}</ToolContentResponse></div>
+			</div>}
 
 			{((answer.options?.length ?? 0) > 0 || answer.other) && (
 				<div className="flex flex-col gap-1.5 text-sm">

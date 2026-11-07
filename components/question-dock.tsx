@@ -7,10 +7,12 @@ import { finishDictation, isDictationActive, joinDictation, useDictationTarget }
 import { useEnterSubmits } from "@/components/enter-submits";
 import { PathInput } from "@/components/path-input";
 import { MalformedQuestion } from "@/components/malformed-question";
+import { ListeningAudio } from "@/components/listening-audio";
 import { ToolContentResponse } from "@/components/ai-elements/message";
 import { cn } from "@/lib/utils";
 import {
 	buildAnswer,
+	audioFailureAnswer,
 	repairMathForDisplay,
 	normalizeQuizType,
 	CONFIDENCE_STOPS,
@@ -36,6 +38,7 @@ import {
 	type QuestionMode,
 	type QuizToolInput,
 	type SelectMode,
+	type SpeechPlaybackRate,
 	type Phase3,
 } from "@/src/core";
 import { CONFIDENCE_COLORS, confidenceRailStyle } from "@/components/confidence-rail";
@@ -290,6 +293,7 @@ function QuestionDockForm({
 		const ordered = kind === "quiz" && options.length > 0 ? shuffleOptions(options, seededRandom(toolCallId)) : options;
 		const q: QuestionData = {
 			id: toolCallId,
+			listening: quizInput?.listening ?? explainInput?.listening,
 			kind,
 			// The role (owner 2026-10-03): predict questions gate by it in the
 			// view (never collapsed) and the answered card tucks the explanation.
@@ -325,6 +329,15 @@ function QuestionDockForm({
 	const [thinking, setThinking] = useState(initialDraft?.thinking ?? "");
 	const [other, setOther] = useState(initialDraft?.other ?? "");
 	const [text, setText] = useState(initialDraft?.text ?? "");
+	const listeningKey = JSON.stringify([toolCallId, qd.listening?.text]);
+	const [listenedTo, setListenedTo] = useState<string | null>(initialDraft?.listeningCompleted ? listeningKey : null);
+	const listeningCompleted = listenedTo === listeningKey;
+	const completeListening = useCallback(() => setListenedTo(listeningKey), [listeningKey]);
+	const [listeningUse, setListeningUse] = useState<{ key: string; rates: SpeechPlaybackRate[] }>(() => ({ key: listeningKey, rates: initialDraft?.listeningPlaybackRates ?? [] }));
+	const listeningPlaybackRates = listeningUse.key === listeningKey ? listeningUse.rates : [];
+	const startListening = useCallback((rate: SpeechPlaybackRate) => {
+		setListeningUse(previous => ({ key: listeningKey, rates: [...new Set([...(previous.key === listeningKey ? previous.rates : []), rate])] }));
+	}, [listeningKey]);
 	/* Refs MIRROR the two dictation-target fields ("nothing gets lost"
 	 * round, owner 2026-10-01): the run's flush lands via setState, which
 	 * a closure waiting through `await finishDictation()` cannot observe
@@ -368,10 +381,11 @@ function QuestionDockForm({
 
 	const toggle = (idx: number) => setSel(toggleOption(selectMode, sel, idx));
 
-	const canSubmit =
+	const hasAnswer =
 		qd.mode === "text"
 			? text.trim().length > 0
 			: sel.dontKnow || (sel.otherSelected && other.trim().length > 0) || sel.selected.size > 0;
+	const canSubmit = hasAnswer && (!qd.listening || listeningCompleted);
 
 	const submit = () => {
 		if (!canSubmit || compactionRunning) return;
@@ -390,6 +404,8 @@ function QuestionDockForm({
 	const doSubmit = () => {
 		if (!canSubmit) return;
 		const req: AnswerRequest = {
+			listeningCompleted,
+			listeningPlaybackRates,
 			dontKnow: sel.dontKnow,
 			values: [...sel.selected].map((i) => qd.options[i]!.value),
 			other: sel.otherSelected ? other : undefined,
@@ -407,6 +423,8 @@ function QuestionDockForm({
 			other,
 			text: answerTextRef.current,
 			confidenceIndex: confIdx,
+			listeningCompleted,
+			listeningPlaybackRates,
 		});
 		onSubmit(buildAnswer(qd, req, toolName));
 	};
@@ -577,6 +595,8 @@ function QuestionDockForm({
 											: "Question"}
 					{qd.mode === "multi-select" && " · select all that apply"}
 				</div>
+				{qd.listening && <ListeningAudio key={`${toolCallId}:${qd.listening.text}`} text={qd.listening.text} active={active} disabled={compactionRunning}
+					onStarted={startListening} onCompleted={completeListening} onContinue={() => { if (!compactionRunning) onSubmit(audioFailureAnswer(qd, toolName)); }} />}
 				<div className="mb-3 font-medium">
 					<ToolContentResponse>{qd.question}</ToolContentResponse>
 				</div>
@@ -914,7 +934,7 @@ function QuestionDockForm({
 					)}
 					<div className="flex items-center justify-between gap-2 p-1">
 						<span aria-hidden className="pl-1.5 text-xs text-muted-foreground">
-								{compactionRunning ? "compacting session…" : "↵ submits · ⇧↵ newline"}
+								{compactionRunning ? "compacting session…" : qd.listening && !listeningCompleted ? "Listen once before submitting" : "↵ submits · ⇧↵ newline"}
 						</span>
 						<Button
 							type="submit"

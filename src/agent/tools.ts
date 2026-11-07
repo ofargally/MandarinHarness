@@ -7,6 +7,7 @@ import {
 	explainInputBase,
 	explainInputObject,
 	explainInputProblems,
+	listeningInputSchema,
 	parseOptionsIfString,
 	probeQuizInputSchema,
 	quizInputObject,
@@ -260,6 +261,20 @@ export const probeExplainTool: AgentTool<typeof explainInputBase> = {
 	},
 };
 
+/** The alternate ordinary format is available for listening only. Keeping
+ * the existing names preserves pending, grading and plan-position semantics. */
+function listeningOnly(tool: AgentTool<any>): AgentTool<any> {
+	return {
+		...tool,
+		description: tool.description + " This answer format is LISTENING-ONLY under the current ordinary quizzing preference: listening.text is REQUIRED.",
+		parameters: Type.Object({ ...tool.parameters.properties, listening: listeningInputSchema }),
+		execute: async (id, input, signal, onUpdate) => {
+			if (!input || typeof input !== "object" || !("listening" in input) || !input.listening) return invalidInputResult(tool.name, ["This format requires listening.text. Use the ordinary quizzing format for written questions."]);
+			return tool.execute(id, input, signal, onUpdate);
+		},
+	};
+}
+
 /** The prober's registry context: the probe's own needs (probe_done —
  *  ProbeDoneContext) PLUS the job-dispatch wiring, since the owner ruling
  *  (2026-09-20) puts research + pdf in the probe phase's registry too. */
@@ -300,8 +315,8 @@ export function createProberTools(
 		searchAvailable: ctx.searchAvailable,
 	});
 	// Quizzing mechanics (owner 2026-09-27): free-recall swaps the probe
-	// quiz for the probe explain — one quizzing tool at a time, whichever
-	// the settings arm. ask stays always-on. The registry keys are the
+	// ordinary written format. Both answer formats remain available for
+	// listening; the alternate requires audio. ask stays always-on. The registry keys are the
 	// PHASE names (probe/recall, owner 2026-10-09) — distinct from the
 	// teach tools so the schema boundary is visible to the model.
 	const mechanics = quizMechanics(enabled);
@@ -310,7 +325,9 @@ export function createProberTools(
 	// differently-typed literals makes the whole object's type a union —
 	// unusable as Record<string, AgentTool<any>> downstream).
 	const quizzing: Record<string, AgentTool<any>> =
-		mechanics === "free" ? { recall: probeExplainTool } : { probe: probeQuizTool };
+		mechanics === "free"
+			? { recall: probeExplainTool, probe: listeningOnly(probeQuizTool) }
+			: { probe: probeQuizTool, recall: listeningOnly(probeExplainTool) };
 	// healToolRecord (owner, 2026-10-09 — the whitehead generalization):
 	// the standard argument heal over the WHOLE registry — every tool,
 	// not just the one the latest wobble incident landed on.
@@ -436,13 +453,15 @@ export function createTeacherTools(
 	enabled?: EnabledTools,
 ): Record<string, AgentTool<any>> {
 	// Quizzing mechanics (owner 2026-09-27): free-recall swaps the teach
-	// quiz for the teach explain — one quizzing tool at a time, whichever
-	// the settings arm. ask stays always-on.
+	// ordinary written format. Both answer formats remain available for
+	// listening; the alternate requires audio. ask stays always-on.
 	const mechanics = quizMechanics(enabled);
 	// Same widening as the prober's (see above) — the conditional spread of
 	// two differently-typed literals collapses into an unusable union type.
 	const quizzing: Record<string, AgentTool<any>> =
-		mechanics === "free" ? { explain: teachExplainToolFor(ctx) } : { quiz: teachQuizToolFor(ctx) };
+		mechanics === "free"
+			? { explain: teachExplainToolFor(ctx), quiz: listeningOnly(teachQuizToolFor(ctx)) }
+			: { quiz: teachQuizToolFor(ctx), explain: listeningOnly(teachExplainToolFor(ctx)) };
 	// healToolRecord — same standard as the prober's registry (above).
 	return healToolRecord(
 		filterEnabledTools(

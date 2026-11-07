@@ -4,6 +4,9 @@ export const SPEECH_MAX_REQUEST_BYTES = 32 * 1024;
 export const SPEECH_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 export const SPEECH_TIMEOUT_MS = 30_000;
 
+/** Listening playback choices; these do not change the synthesis profile. */
+export type SpeechPlaybackRate = 1 | 0.75;
+
 export interface SpeechAudio {
 	audio: Uint8Array;
 	mimeType: string;

@@ -81,6 +81,8 @@ function toolResultBody(result: ToolResultMessage, ctx?: MarkdownContext): { hea
 				answers: string[];
 				other: string;
 				dismissed: boolean;
+				audioFailure: boolean;
+				listening: { text: string; playbackCompleted: boolean };
 		  }>
 		| undefined;
 
@@ -100,11 +102,13 @@ function toolResultBody(result: ToolResultMessage, ctx?: MarkdownContext): { hea
 						: "Recall check"; // explain — the teach free-recall name
 		const question = typeof out?.questionText === "string" && out.questionText ? out.questionText : "(no question text)";
 		const body = [`**Q:** ${question}`];
-		if (out?.dismissed === true) body.push("The learner skipped this check.");
+		if (out?.audioFailure === true) body.push("Audio failed. The learner chose to continue another way; listening remains unassessed.");
+		else if (out?.dismissed === true) body.push("The learner skipped this check.");
 		else if (out?.dontKnow === true) body.push("The learner did not know.");
 		else if (out?.correct === true) body.push("The learner answered correctly.");
 		else if (out?.correct === false) body.push("The learner answered incorrectly.");
 		else if (typeof out?.text === "string" && out.text.trim()) body.push(`The learner answered in his own words: ${out.text.trim()}`);
+		if (out?.listening?.playbackCompleted && !out.audioFailure && !out.dismissed) body.push(`**Transcript:** ${out.listening.text}`);
 		if (typeof out?.note === "string" && out.note) body.push(`*(his thinking: ${out.note})*`);
 		return { heading, body };
 	}

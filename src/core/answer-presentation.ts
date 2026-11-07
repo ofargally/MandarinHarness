@@ -6,12 +6,13 @@ import { parseAskInput, parseExplainInput, parseQuizInput } from "./tool-parts.t
 import { repairMathForDisplay } from "./math-delims.ts";
 
 export function answerForPresentation(answer: QuestionAnswerData, input: unknown): QuestionAnswerData {
-	if (answer.dismissed) return answer;
+	if (answer.dismissed || answer.audioFailure) return answer;
 	const quiz = answer.kind === "quiz" ? parseQuizInput(input) : undefined;
 	const explain = answer.kind === "explain" ? parseExplainInput(input) : undefined;
 	const source = quiz ?? explain ?? (answer.kind === "ask" ? parseAskInput(input) : undefined);
 	if (!source) return answer;
 	const projected = { ...answer, questionText: source.question };
+	if ("listening" in source && source.listening) projected.listening = { ...answer.listening, ...source.listening, playbackCompleted: true };
 	if (quiz) projected.explanation = quiz.explanation;
 	if (explain) projected.committed = explain.correctAnswer;
 	if (!answer.options?.length || !("options" in source) || !source.options?.length) return projected;

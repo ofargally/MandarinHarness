@@ -770,7 +770,7 @@ export function AgentSection({
 					return (
 						<SettingsRow
 							label="Quizzing"
-							hint="How both tutors check your understanding"
+							hint="Answer format for written checks. Listening questions can use either."
 							testid="quiz-mechanics-row"
 						>
 							<div

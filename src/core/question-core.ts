@@ -19,6 +19,24 @@
 
 import { Type, type Static } from "typebox";
 import { stripModelValueDebris } from "./value-debris.ts";
+import { SPEECH_MAX_CODE_POINTS, parseSpeechRequest, type SpeechPlaybackRate } from "./speech.ts";
+
+/** Audio is a modality of a graded question, independent of its answer format. */
+export const listeningInputSchema = Type.Object({
+	text: Type.String({
+		minLength: 1,
+		maxLength: SPEECH_MAX_CODE_POINTS,
+		description: "One Mandarin sentence to synthesize with the configured voice. Hidden until answer submission. Never repeat it in visible question/details or preceding prose.",
+	}),
+});
+export type ListeningInput = Static<typeof listeningInputSchema>;
+
+export function listeningInputProblems(input: { listening?: ListeningInput; multiSelect?: boolean }): string[] {
+	if (!input.listening) return [];
+	try { parseSpeechRequest(input.listening); }
+	catch { return ["listening.text must be nonempty readable text within the speech length limit."]; }
+	return input.multiSelect === true ? ["Listening questions currently support single-answer multiple choice or free recall, not multiSelect."] : [];
+}
 
 // ─── shared types ───────────────────────────────────────────────────────────
 
@@ -113,8 +131,10 @@ export function quizInputProblems(input: {
 	options: Array<{ label: string; value?: string }>;
 	correctAnswer: string | string[];
 	multiSelect?: boolean;
+	listening?: ListeningInput;
 }): string[] {
 	const { problems, keys } = optionProblems(input.options);
+	problems.push(...listeningInputProblems(input));
 
 	// Preserve exact option keys before trying copy-syntax cleanup — the
 	// same option-aware coercion runs at the display and grading seams.
@@ -156,6 +176,7 @@ export function quizInputProblems(input: {
 // args in schema order, so explanation sits immediately BEFORE correctAnswer.
 // (All consumers read by key; the order is authoring guidance, nothing else.)
 export const quizInputBase = Type.Object({
+	listening: Type.Optional(listeningInputSchema),
 	question: Type.String({
 		description:
 			"The single quiz question to ask. ONE question per turn: ask, then end your turn — the answer determines the next question.",
@@ -301,6 +322,7 @@ export const quizDisplayInputSchema = Type.Object({
 // not in the system prompt.
 
 export const explainInputBase = Type.Object({
+	listening: Type.Optional(listeningInputSchema),
 	question: Type.String({
 		description:
 			"The single question to ask. ONE question per turn: ask, then end your turn — the answer determines the next.",
@@ -349,11 +371,12 @@ export const explainDisplayInputSchema = Type.Object({
 
 /** The explain authoring contract: the commitment must exist. Empty
  *  result = an explain the dock can arm and the model can grade against. */
-export function explainInputProblems(input: { correctAnswer: string }): string[] {
+export function explainInputProblems(input: { correctAnswer: string; listening?: ListeningInput }): string[] {
+	const problems = listeningInputProblems(input);
 	if (input.correctAnswer.trim().length === 0) {
-		return ["correctAnswer is required — commit to the full correct answer BEFORE posing the question."];
+		problems.push("correctAnswer is required — commit to the full correct answer BEFORE posing the question.");
 	}
-	return [];
+	return problems;
 }
 
 /** The tool names that carry the quizzing mechanic — the teach seam
@@ -411,6 +434,7 @@ export type QuestionMode = SelectMode | "text";
 /** Full question data — stored in the `lh_question` custom entry. */
 export interface QuestionData {
 	id: string;
+	listening?: ListeningInput;
 	kind: QuestionKind;
 	/** quiz only (teach phase, owner 2026-10-03): the question's role in
 	 *  the cycle — predict (before the teaching, never collapsed) or check
@@ -435,6 +459,10 @@ export interface QuestionData {
  *  toolCallId restated — the toolResult message already carries it. */
 export interface QuestionAnswerData {
 	kind: QuestionKind;
+	/** Full record for transcript review; model projection omits the authored text. */
+	listening?: ListeningInput & { playbackCompleted: boolean; playbackRates?: SpeechPlaybackRate[] };
+	/** Technical failure, never a wrong answer or a comprehension assessment. */
+	audioFailure?: boolean;
 	/** The persisted call's tool NAME (owner, 2026-10-09): probe-phase
 	 *  calls are `probe`/`recall`, teach calls `quiz`/`explain` — the
 	 *  cards label by it ("Probe"/"Recall"), so the phase boundary is
@@ -483,6 +511,8 @@ export interface ClientQuestion {
 
 /** What the server passes to the bridge when the learner answers. */
 export interface AnswerRequest {
+	listeningCompleted?: boolean;
+	listeningPlaybackRates?: SpeechPlaybackRate[];
 	dontKnow?: boolean;
 	values?: string[]; // option values
 	other?: string; // ask "Other"
@@ -519,6 +549,8 @@ export interface QuestionFormDraft {
 	other: string;
 	text: string;
 	confidenceIndex: number;
+	listeningCompleted?: boolean;
+	listeningPlaybackRates?: SpeechPlaybackRate[];
 }
 
 export interface QuestionDraft {
@@ -706,8 +738,13 @@ function formatOptionRef(options: QuizOption[], index: number): string {
  * agent will see. Quiz answers are graded here; ask answers are not.
  */
 export function buildAnswer(qd: QuestionData, req: AnswerRequest, tool?: string): QuestionAnswerData {
+	if (qd.listening && req.listeningCompleted !== true) throw new Error("Complete one playback before answering a listening question.");
 	const base: QuestionAnswerData = {
 		kind: qd.kind,
+		...(qd.listening ? { listening: {
+			...qd.listening, playbackCompleted: true,
+			...(req.listeningPlaybackRates ? { playbackRates: [...new Set(req.listeningPlaybackRates.filter(rate => rate === 1 || rate === 0.75))] } : {}),
+		} } : {}),
 		...(tool ? { tool } : {}),
 		questionType: qd.questionType,
 		questionText: qd.question,
@@ -776,9 +813,30 @@ export function dismissedAnswer(kind: QuestionKind, questionText: string): Quest
 	};
 }
 
+export function audioFailureAnswer(qd: QuestionData, tool: string): QuestionAnswerData {
+	return {
+		kind: qd.kind, tool, questionText: qd.question, questionType: qd.questionType,
+		dontKnow: false, answers: [], audioFailure: true,
+		listening: qd.listening ? { ...qd.listening, playbackCompleted: false } : undefined,
+		answeredAt: new Date().toISOString(),
+	};
+}
+
 export function compactAnswerForModel(ad: QuestionAnswerData): Record<string, unknown> {
+	if (ad.audioFailure) return {
+		kind: ad.kind, modality: "listening", outcome: "audio_unavailable", assessment: "unassessed",
+		instruction: "Audio failed and the learner chose Continue another way. Do not grade this as an answer or infer listening ability. Assess the learning goal another way; written alternatives cannot establish listening comprehension.",
+	};
 	if (ad.dismissed) return { kind: ad.kind, dismissed: true };
 	const out: Record<string, unknown> = { kind: ad.kind };
+	if (ad.listening) {
+		out.modality = "listening";
+		out.playbackCompleted = ad.listening.playbackCompleted;
+		if (ad.listening.playbackRates?.length) {
+			out.playbackRates = ad.listening.playbackRates;
+			out.slowPlaybackUsed = ad.listening.playbackRates.includes(0.75);
+		}
+	}
 	if (ad.dontKnow) out.dontKnow = true;
 	// Array.isArray: the seam is called with `unknown` answers (test
 	// fixtures, foreign records) — degrade to omission, never crash.
