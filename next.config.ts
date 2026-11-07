@@ -37,9 +37,8 @@ const nextConfig: NextConfig = {
 	// under their dist/ — the traced copy collapsed to a bare package.json
 	// and the packaged server died on ERR_MODULE_NOT_FOUND; openai/
 	// @anthropic-ai — pi-ai's deps — vanished from the trace entirely).
-	// Anchored "./"-prefixed forms behave the same. **/data/**/* fixes
-	// suffix matching in Next's JavaScript collector, but NOT its native
-	// Turbopack tracer: that still prunes gcp-metadata and its private deps.
+	// Personal desktop builds use Webpack: scope data exclusion to the
+	// project root. **/data/**/* also removes the provider catalog JSON.
 	// Keep the narrow closure workaround below AND the native runtime gate.
 	// Real SDK data/ directories still need their explicit includes too.
 	// The recursive-DMG payload (repo dist/ swept into the bundle, shipping
@@ -51,7 +50,7 @@ const nextConfig: NextConfig = {
 	// stay intact, and the script guards against leaked data/keys.
 	outputFileTracingExcludes: {
 		"*": [
-			"**/data/**/*",
+			"./data/**/*",
 			"auth.json",
 			"chatgpt-credentials.json*",
 			"github-copilot-credentials.json*",
@@ -72,6 +71,10 @@ const nextConfig: NextConfig = {
 	// caught it; unit tests run unbundled and never see it.
 	outputFileTracingIncludes: {
 		"*": [
+			// Prompt segment paths are selected dynamically at runtime.
+			"src/agent/prompts/**/*.md",
+			// Next 16.4.3's standalone trace omits these router dependencies.
+			"node_modules/next/dist/lib/metadata/{get-metadata-route,is-metadata-route}.js",
 			// The standalone trace omitted this entire runtime-imported directory
 			// in 0.3.0, so importing puppeteer-core failed before browser startup.
 			"node_modules/@puppeteer/browsers/lib/browser-data/**/*.js",

@@ -21,7 +21,7 @@
 		"typecheck": "tsc --noEmit",
 		"desktop:dev": "concurrently -k \"next dev\" \"LH_DEV_URL=http://localhost:3000 electron .\"",
 		"dev:fresh": "bash scripts/dev-fresh.sh",
-		"desktop:dist": "rm -rf dist .next/standalone && next build && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs --electron && electron-builder --mac --arm64 --publish never"
+		"desktop:dist": "rm -rf dist .next/standalone && next build --webpack && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs --electron && electron-builder --mac --arm64 --publish never"
 	},
 	"dependencies": {
 		"@earendil-works/pi-agent-core": "1.4.0",
